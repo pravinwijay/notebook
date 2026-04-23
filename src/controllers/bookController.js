@@ -2,6 +2,7 @@ const { PutObjectCommand } = require('@aws-sdk/client-s3');
 const s3Client = require('../config/s3');
 const BookModel = require('../models/bookModel');
 const { v4: uuidv4 } = require('uuid');
+const { ethers } = require('ethers');
 
 const bucketName = process.env.AWS_S3_BUCKET_NAME;
 
@@ -66,6 +67,49 @@ const BookController = {
     } catch (error) {
       console.error('Erreur Serveur:', error);
       res.status(500).json({ error: 'Un problème est survenu lors de la création du livre.' });
+    }
+  },
+
+  rateBook: async (req, res) => {
+    try {
+      const bookId = req.params.id; // L'ID du livre depuis l'URL
+      const { stars } = req.body;   // La note envoyée (1 à 5)
+
+      if (!stars || stars < 1 || stars > 5) {
+        return res.status(400).json({ error: 'Une note entre 1 et 5 est requise.' });
+      }
+
+      // 1. Initialiser la connexion à la blockchain
+      // On utilise JsonRpcProvider pour ethers v6
+      const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+      const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
+
+      // 2. Définir l'interface (ABI) stricte de notre contrat
+      const contractABI = [
+        "function addRating(uint256 _bookId, uint8 _stars) public",
+        "event RatingAdded(uint256 indexed bookId, uint8 stars, address indexed rater, uint256 timestamp)"
+      ];
+
+      // 3. Connecter notre instance au Smart Contract
+      const contract = new ethers.Contract(process.env.CONTRACT_ADDRESS, contractABI, wallet);
+
+      // 4. Envoyer la transaction sur la blockchain (modifie l'état)
+      console.log(`Envoi de la note ${stars} pour le livre ${bookId} sur la blockchain...`);
+      const tx = await contract.addRating(bookId, stars);
+
+      // 5. Attendre que la transaction soit validée (minée)
+      const receipt = await tx.wait();
+
+      res.status(200).json({
+        message: 'Avis enregistré sur la blockchain avec succès ! (Infalsifiable)',
+        transactionHash: receipt.hash,
+        bookId: bookId,
+        stars: stars
+      });
+
+    } catch (error) {
+      console.error('Erreur Blockchain:', error);
+      res.status(500).json({ error: 'Un problème est survenu lors de l\'enregistrement de la note sur la blockchain.' });
     }
   }
 };

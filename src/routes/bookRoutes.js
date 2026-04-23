@@ -10,4 +10,7 @@ router.get('/', BookController.getBooks);
 // 'coverImage' correspond à la clé à envoyer via form-data dans l'application cliente ou Postman
 router.post('/', upload.single('coverImage'), BookController.createBook);
 
+// Route POST pour ajouter une note (avis infalsifiable sur la blockchain)
+router.post('/:id/rate', BookController.rateBook);
+
 module.exports = router;
