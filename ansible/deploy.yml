@@ -1,0 +1,59 @@
+---
+- name: Déploiement de l'API Library sur AWS EC2
+  hosts: webserver
+  become: yes # Pour exécuter les commandes en tant que root (sudo)
+
+  tasks:
+    - name: Mettre à jour les paquets (apt)
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Installer les dépendances requises pour Docker
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+        state: present
+
+    - name: Installer Docker et Docker Compose
+      apt:
+        name:
+          - docker.io
+          - docker-compose
+        state: present
+
+    - name: Démarrer et activer le service Docker
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Créer le dossier de l'application sur le serveur
+      file:
+        path: /opt/library-api
+        state: directory
+        mode: "0755"
+
+    # Dans un vrai projet de grande ampleur, on télécharge l'image depuis un registre (ex: DockerHub). 
+    # Pour ton évaluation, on copie simplement le code pour utiliser le docker-compose build de manière autonome.
+    - name: Synchroniser les fichiers du projet vers le serveur EC2
+      ansible.posix.synchronize:
+        src: ../
+        dest: /opt/library-api/
+        rsync_opts:
+          - "--exclude=.git"
+          - "--exclude=node_modules"
+
+    - name: Arrêter les anciens conteneurs
+      command: docker-compose down
+      args:
+        chdir: /opt/library-api
+      ignore_errors: yes
+
+    - name: Reconstruire et démarrer les conteneurs (API + DB locale si configurée)
+      command: docker-compose up -d --build
+      args:
+        chdir: /opt/library-api

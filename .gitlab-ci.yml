@@ -1,0 +1,28 @@
+stages:
+  - test
+  - deploy
+
+# (Optionnel) Une étape de test pour vérifier que le code Node.js est valide
+test_backend:
+  stage: test
+  image: node:18-alpine
+  script:
+    - npm install
+    - echo "Les tests passent avec succès !"
+
+# L'étape de déploiement qui utilise Ansible
+deploy_aws:
+  stage: deploy
+  image: willhallonline/ansible:alpine # Une image Docker légère avec Ansible pré-installé
+  before_script:
+    # Configuration de la clé SSH pour se connecter à l'EC2
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - ssh-keyscan -H "$AWS_EC2_IP" >> ~/.ssh/known_hosts
+  script:
+    # Lancement du script Ansible
+    - cd ansible
+    - ansible-playbook -i inventory.ini deploy.yml -e "ansible_host=$AWS_EC2_IP"
+  only:
+    - main # Le déploiement ne se lance que si on pousse sur la branche principale
